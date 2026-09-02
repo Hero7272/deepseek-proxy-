@@ -1,0 +1,7 @@
+name = "silberwerk-proxy"
+main = "worker.js"
+compatibility_date = "2026-08-01"
+
+# Das Zugangswort wird NICHT hier eingetragen, sondern als Secret gesetzt:
+#   npx wrangler secret put SW_PASS
+# oder im Cloudflare-Dashboard unter Settings → Variables and Secrets.
