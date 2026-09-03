@@ -1,5 +1,5 @@
 name = "silberwerk-proxy"
-main = "worker.js"
+main = "_worker.js"
 compatibility_date = "2026-08-01"
 
 # Das Zugangswort wird NICHT hier eingetragen, sondern als Secret gesetzt:
