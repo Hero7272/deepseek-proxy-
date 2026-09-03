@@ -1,60 +1,33 @@
-// Cloudflare Worker — Proxy zwischen der DeepSeek-Werkstatt-App und der DeepSeek-API.
-// Löst zwei Probleme auf einmal:
-// 1. DeepSeek blockt Aufrufe direkt aus dem Browser (CORS) — der Worker ruft stattdessen serverseitig auf.
-// 2. Kein Zeitlimit wie bei Vercel-Serverless-Funktionen auf dem Hobby-Plan — Worker geben
-//    den Stream einfach durch, ohne die Antwort selbst zu puffern.
-
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'content-type, x-api-key, x-sw-pass',
-};
-
 export default {
   async fetch(request, env) {
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: CORS });
-    }
-    if (request.method !== 'POST') {
-      return new Response('Nur POST erlaubt.', { status: 405, headers: CORS });
-    }
+    const cors = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'content-type, x-api-key, x-sw-pass, x-sw-target',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    };
+    if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
+    if (request.method !== 'POST') return new Response('Nur POST', { status: 405, headers: cors });
 
-    // Zugangswort prüfen (im Cloudflare-Dashboard als Secret SW_PASS hinterlegt).
-    // Wenn kein SW_PASS gesetzt ist, ist der Worker offen — für den privaten Gebrauch
-    // mit geheimer Worker-URL okay, für alles andere: SW_PASS setzen.
-    if (env.SW_PASS) {
+    // Optionaler Passwortschutz, damit nicht irgendwer deinen Worker mitbenutzt.
+    // In Cloudflare unter Worker -> Settings -> Variables als Secret "WORKER_PASS" anlegen.
+    if (env.WORKER_PASS) {
       const pass = request.headers.get('x-sw-pass') || '';
-      if (pass !== env.SW_PASS) {
-        return new Response('Zugangswort stimmt nicht.', { status: 403, headers: CORS });
-      }
+      if (pass !== env.WORKER_PASS) return new Response('Falsches Passwort', { status: 401, headers: cors });
     }
 
     const apiKey = request.headers.get('x-api-key');
-    if (!apiKey) {
-      return new Response('Kein API-Key übergeben (Header x-api-key fehlt).', { status: 400, headers: CORS });
-    }
+    const ziel = request.headers.get('x-sw-target');
+    if (!apiKey) return new Response('Kein x-api-key Header', { status: 400, headers: cors });
+    if (!ziel) return new Response('Kein x-sw-target Header', { status: 400, headers: cors });
 
-    let upstream;
-    try {
-      upstream = await fetch('https://api.deepseek.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'Authorization': 'Bearer ' + apiKey,
-        },
-        body: request.body,
-      });
-    } catch (e) {
-      return new Response('DeepSeek nicht erreichbar: ' + e.message, { status: 502, headers: CORS });
-    }
-
-    // Antwort (inkl. SSE-Stream) unverändert durchreichen, nur CORS-Header ergänzen.
-    const headers = new Headers(CORS);
-    headers.set('content-type', upstream.headers.get('content-type') || 'application/json');
-
-    return new Response(upstream.body, {
-      status: upstream.status,
-      headers,
+    const upstream = await fetch(ziel, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + apiKey },
+      body: request.body
     });
-  },
+
+    const headers = new Headers(upstream.headers);
+    Object.entries(cors).forEach(([k, v]) => headers.set(k, v));
+    return new Response(upstream.body, { status: upstream.status, headers });
+  }
 };
