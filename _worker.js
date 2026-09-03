@@ -10,7 +10,7 @@ export default {
 
     if (env.SW_PASS) {
       const pass = request.headers.get('x-sw-pass') || '';
-      if (pass !== env.SW_PASS) return new Response('Falsches Passwort', { status: 401, headers: cors });
+      if (pass !== env.SW_PASS) return new Response('Falsches Passwort', { status: 403, headers: cors });
     }
 
     const apiKey = request.headers.get('x-api-key');
