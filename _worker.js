@@ -21,7 +21,8 @@ export default {
     const upstream = await fetch(ziel, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'authorization': 'Bearer ' + apiKey },
-      body: request.body
+      body: request.body,
+      duplex: 'half'
     });
 
     const headers = new Headers(upstream.headers);
