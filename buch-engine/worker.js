@@ -77,7 +77,15 @@ async function kimiAufruf(env, { system, user, model, maxTokens }) {
 }
 
 function jobSchluessel(id) { return 'job:' + id; }
+const INDEX_SCHLUESSEL = 'jobindex';
 
+async function ladeIndex(env) {
+  const raw = await env.BUCH_KV.get(INDEX_SCHLUESSEL);
+  return raw ? JSON.parse(raw) : [];
+}
+async function speichereIndex(env, liste) {
+  await env.BUCH_KV.put(INDEX_SCHLUESSEL, JSON.stringify(liste));
+}
 async function ladeJob(env, id) {
   const raw = await env.BUCH_KV.get(jobSchluessel(id));
   return raw ? JSON.parse(raw) : null;
@@ -122,6 +130,8 @@ export default {
       };
       logZeile(job, 'Auftrag angelegt — wird beim nächsten Zeittakt (spätestens in 60s) gestartet.');
       await speichereJob(env, job.id, job);
+      const index = await ladeIndex(env);
+      if (!index.includes(job.id)) { index.push(job.id); await speichereIndex(env, index); }
       return json({ ok: true, jobId: job.id });
     }
 
@@ -141,10 +151,18 @@ export default {
   //     völlig unabhängig davon ob dein Handy an, aus, im Hintergrund oder
   //     die App geschlossen ist. ---
   async scheduled(event, env, ctx) {
-    const liste = await env.BUCH_KV.list({ prefix: 'job:' });
-    for (const eintrag of liste.keys) {
-      const job = JSON.parse(await env.BUCH_KV.get(eintrag.name));
-      if (!job || (job.status !== 'wartet' && job.status !== 'läuft')) continue;
+    const index = await ladeIndex(env);
+    if (!index.length) return;
+    let indexGeaendert = false;
+
+    for (const id of index.slice()) {
+      const job = await ladeJob(env, id);
+      if (!job) { const i = index.indexOf(id); if (i>-1){ index.splice(i,1); indexGeaendert = true; } continue; }
+      if (job.status !== 'wartet' && job.status !== 'läuft') {
+        // fertig oder endgültig gescheitert — aus der aktiven Liste nehmen, Ergebnis bleibt trotzdem in KV gespeichert und über /status abrufbar
+        const i = index.indexOf(id); if (i>-1){ index.splice(i,1); indexGeaendert = true; }
+        continue;
+      }
 
       job.status = 'läuft';
       job.versuch = (job.versuch || 0) + 1;
@@ -168,6 +186,10 @@ export default {
         }
       }
       await speichereJob(env, job.id, job);
+      if (job.status === 'fertig' || job.status === 'fehler') {
+        const i = index.indexOf(id); if (i>-1){ index.splice(i,1); indexGeaendert = true; }
+      }
     }
+    if (indexGeaendert) await speichereIndex(env, index);
   }
 };
