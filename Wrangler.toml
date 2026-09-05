@@ -1,0 +1,10 @@
+name = "buch-engine"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[[kv_namespaces]]
+binding = "BUCH_KV"
+id = "afe65158ff1a4d09a212c3993a681da5"
+
+[triggers]
+crons = ["* * * * *"]
