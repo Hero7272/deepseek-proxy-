@@ -63,7 +63,7 @@ async function kimiAufruf(env, { system, user, model, maxTokens }) {
 
   const r = await fetch(KIMI_URL, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + env.KIMI_KEY },
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + String(env.KIMI_KEY || '').trim() },
     body: JSON.stringify(body)
   });
   if (!r.ok) {
