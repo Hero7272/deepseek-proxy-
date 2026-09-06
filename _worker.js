@@ -13,9 +13,9 @@ export default {
       if (pass !== env.SW_PASS) return new Response('Falsches Passwort', { status: 403, headers: cors });
     }
 
-    const apiKey = request.headers.get('x-api-key');
+    const apiKey = (request.headers.get('x-api-key') || env.KIMI_KEY || env.API_KEY || '').trim();
     const ziel = request.headers.get('x-sw-target');
-    if (!apiKey) return new Response('Kein x-api-key Header', { status: 400, headers: cors });
+    if (!apiKey) return new Response('Kein API-Key (Header oder Secret)', { status: 400, headers: cors });
     if (!ziel) return new Response('Kein x-sw-target Header', { status: 400, headers: cors });
 
     const upstream = await fetch(ziel, {
